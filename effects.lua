@@ -4,11 +4,13 @@ m.effects = {}
 m.statuses = {}
 m.status_keys = {}
 m.huds = {}
+m.sts = {}
 
 local players = {}
 
 function m.effect(player, name, set)
     local t = players[player:get_player_name()]
+    local old = t[name]
 
     if set ~= nil then
         assert(m.effects[name])
@@ -22,12 +24,16 @@ function m.effect(player, name, set)
     if t[name] and os.time() - t[name].time <= t[name].duration then
         return t[name]
     end
+
+    if old and m.effects[name].stop then
+        m.effects[name].stop(player, old)
+    end
 end
 
 function m.register_effect(n, f)
     m.effects[n] = f
 
-    if f.status then
+    if f.status or f.apply then
         m.statuses[n] = f
         table.insert(m.status_keys, n)
         table.sort(m.status_keys)
@@ -45,11 +51,25 @@ minetest.register_on_joinplayer(function(player)
         offset = {x = 4, y = -4},
         text = "",
     })
+
+    m.sts[player:get_player_name()] = {}
+    for i=1,10 do
+        m.sts[i] = player:hud_add({
+            position = {x = 0, y = 1},
+            name = "sts_" .. i,
+            scale = {x = 100, y = 100},
+            alignment = {x = 1, y = -1},
+            offset = {x = 4 + ((i - 1) * 32), y = -36},
+            text = "",
+            number = 0xFFFFFF,
+        })
+    end
 end)
 
 minetest.register_on_leaveplayer(function(player)
     players[player:get_player_name()] = nil
     m.huds[player:get_player_name()] = nil
+    m.sts[player:get_player_name()] = nil
 end)
 
 local old = {}
@@ -62,14 +82,33 @@ minetest.register_globalstep(function(dtime)
             local hud = m.huds[n]
             local new = ""
             local combine = {}
+            local texts = {}
             for _,k in ipairs(m.status_keys) do
                 local v = m.statuses[k]
                 local e = m.effect(player, k)
-                if e then
-                    local escaped = (e.status or v.status):gsub("(^)", "\\^"):gsub(":", "\\:")
-                    escaped = (#combine * 32) .. ",0=" .. escaped
-                    table.insert(combine, escaped)
+
+                if v.apply and e then
+                    v.apply(player, e)
                 end
+
+                e = m.effect(player, k)
+
+                if v.status then
+                    if e then
+                        local tex = (e.status or v.status)
+                        local escaped = tex:gsub("(^)", "\\^"):gsub(":", "\\:")
+                        escaped = (#combine * 32) .. ",0=" .. escaped
+                        table.insert(combine, escaped)
+
+                        if e.duration > 0 then
+                            texts[#combine] = math.ceil(e.duration - (os.time() - e.time))
+                        end
+                    end
+                end
+            end
+
+            for i,v in ipairs(m.sts) do
+                player:hud_change(v, "text", texts[i] or "")
             end
 
             if #combine > 0 then
