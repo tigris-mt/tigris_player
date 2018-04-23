@@ -9,3 +9,5 @@ tigris.player = m
 function m.faction(name)
     return "player:" .. name
 end
+
+tigris.include("effects.lua")
