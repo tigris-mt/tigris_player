@@ -100,9 +100,16 @@ minetest.register_globalstep(function(dtime)
                         escaped = (#combine * 32) .. ",0=" .. escaped
                         table.insert(combine, escaped)
 
-                        if e.duration > 0 then
-                            texts[#combine] = math.ceil(e.duration - (os.time() - e.time))
+                        local text = (e.text or "")
+                        if e.text and e.duration > 0 then
+                            text = text .. "\n"
                         end
+
+                        if e.duration > 0 then
+                            text = text .. math.ceil(e.duration - (os.time() - e.time))
+                        end
+
+                        texts[#combine] = text
                     end
                 end
             end
@@ -121,5 +128,21 @@ minetest.register_globalstep(function(dtime)
             end
         end
         timer = 0
+    end
+end)
+
+minetest.register_on_dieplayer(function(player)
+    local t = m.effects[player:get_player_name()]
+    local d = {}
+    for k,v in pairs(t) do
+        if v.duration > 0 then
+            v.time = 0
+        else
+            d[k] = true
+        end
+    end
+
+    for k in pairs(d) do
+        t[k] = nil
     end
 end)
