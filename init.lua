@@ -11,6 +11,7 @@ function m.faction(name)
 end
 
 tigris.include("effects.lua")
+tigris.include("properties.lua")
 
 tigris.player.register_effect("tigris_player:health_regen", {
     description = "Health Regeneration",
