@@ -3,11 +3,8 @@ local m = tigris.player
 -- Registered effects.
 m.effects = {}
 
--- Registered status effects.
-m.statuses = {}
-
--- Advanced processing sorted keys.
-m.status_keys = {}
+-- Sorted keys.
+m.keys = {}
 
 -- Status image elements.
 m.huds = {}
@@ -27,13 +24,13 @@ function m.effect(player, name, set)
         t[name] = m.effects[name].set(player, t[name], set)
     end
 
-    -- If duration is -1, check on.
-    if t[name] and t[name].duration == -1 then
+    -- If remaining is -1, check on.
+    if t[name] and t[name].remaining == -1 then
         return t[name].on and t[name] or nil
     end
 
     -- Check duration.
-    if t[name] and os.time() - t[name].time <= t[name].duration then
+    if t[name] and t[name].remaining > 0 then
         return t[name]
     end
 
@@ -45,13 +42,8 @@ end
 
 function m.register_effect(n, f)
     m.effects[n] = f
-
-    -- Advanced effect.
-    if f.status or f.apply then
-        m.statuses[n] = f
-        table.insert(m.status_keys, n)
-        table.sort(m.status_keys)
-    end
+    table.insert(m.keys, n)
+    table.sort(m.keys)
 end
 
 minetest.register_on_joinplayer(function(player)
@@ -102,13 +94,18 @@ minetest.register_globalstep(function(dtime)
             local new = ""
             local combine = {}
             local texts = {}
-            for _,k in ipairs(m.status_keys) do
-                local v = m.statuses[k]
+            for _,k in ipairs(m.keys) do
+                local v = m.effects[k]
                 local e = m.effect(player, k)
+
+                -- Subtract time delta.
+                if e and e.remaining > 0 then
+                    e.remaining = math.max(0, e.remaining - timer)
+                end
 
                 -- Run apply function.
                 if v.apply and e then
-                    v.apply(player, e)
+                    v.apply(player, e, timer)
                 end
 
                 -- Test effect second time, apply may have stopped it.
@@ -123,12 +120,12 @@ minetest.register_globalstep(function(dtime)
                         table.insert(combine, escaped)
 
                         local text = (e.text or "")
-                        if e.text and e.duration > 0 then
+                        if e.text and e.remaining > 0 then
                             text = text .. "\n"
                         end
 
-                        if e.duration > 0 then
-                            text = text .. math.ceil(e.duration - (os.time() - e.time))
+                        if e.remaining > 0 then
+                            text = text .. math.ceil(e.remaining)
                         end
 
                         texts[#combine] = text
@@ -160,8 +157,8 @@ minetest.register_on_dieplayer(function(player)
     local d = {}
     for k,v in pairs(t) do
         -- If timed, set time expired.
-        if v.duration > 0 then
-            v.time = 0
+        if v.remaining > 0 then
+            v.remaining = 0
         -- Else mark for deletion.
         else
             d[k] = true
