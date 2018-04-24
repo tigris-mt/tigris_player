@@ -132,7 +132,7 @@ minetest.register_globalstep(function(dtime)
 end)
 
 minetest.register_on_dieplayer(function(player)
-    local t = m.effects[player:get_player_name()]
+    local t = players[player:get_player_name()]
     local d = {}
     for k,v in pairs(t) do
         if v.duration > 0 then
